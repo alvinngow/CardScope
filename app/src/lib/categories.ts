@@ -14,23 +14,38 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Other": "#66736f",
 };
 
+const MANAGED_CATEGORIES = new Set(Object.keys(CATEGORY_COLORS));
+
 const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
   {
     category: "Dining",
     keywords: [
+      "astons",
       "bar",
       "burger",
       "cafe",
+      "chagee",
+      "choc a bloc",
       "coffee",
+      "dalcomhan",
       "delivery",
       "doordash",
+      "flow innovation",
       "food",
       "grill",
+      "gu zao ren",
+      "hawker",
+      "italian osteria",
       "kitchen",
+      "koufu",
+      "kopitiam",
       "mcdonald",
+      "nam kee",
       "pizza",
+      "red star",
       "restaurant",
       "starbucks",
+      "toast",
       "ubereats",
     ],
   },
@@ -39,9 +54,14 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
     keywords: [
       "aldi",
       "costco",
+      "don don donki",
+      "donki",
+      "fairprice",
+      "fp xtra",
       "fresh",
       "grocery",
       "market",
+      "ntuc",
       "safeway",
       "supermarket",
       "target",
@@ -56,11 +76,18 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
       "bolt",
       "bus",
       "caltrain",
+      "cdg",
+      "engie",
+      "ev charger",
+      "ev hub",
+      "flashpay",
       "gas",
       "grab",
       "lyft",
+      "mnl- ev",
       "parking",
       "shell",
+      "strides ytl",
       "taxi",
       "toll",
       "train",
@@ -78,6 +105,7 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
       "hyatt",
       "marriott",
       "southwest",
+      "trip.com",
       "travel",
       "united",
     ],
@@ -90,9 +118,11 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
       "best buy",
       "department",
       "etsy",
+      "giordano",
       "ikea",
       "retail",
       "shop",
+      "voucher",
       "store",
     ],
   },
@@ -116,12 +146,17 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
     keywords: [
       "at&t",
       "bill",
+      "broadband",
       "comcast",
       "electric",
+      "gomo",
       "insurance",
       "internet",
       "mobile",
+      "myrepublic",
       "phone",
+      "singtel",
+      "telecom",
       "utility",
       "verizon",
     ],
@@ -140,11 +175,11 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
   },
   {
     category: "Fees",
-    keywords: ["annual fee", "cash advance", "finance charge", "foreign transaction", "interest"],
+    keywords: ["annual fee", "cash advance", "finance charge", "foreign transaction", "gst charges", "interest"],
   },
   {
     category: "Payments & credits",
-    keywords: ["autopay", "credit", "payment", "refund", "reversal", "thank you"],
+    keywords: ["autopay", "cashback", "credit", "dbsbankpaymen", "payment", "refund", "reversal", "thank you"],
   },
 ];
 
@@ -163,4 +198,8 @@ export function categorizeMerchant(merchant: string, amount: number) {
 
 export function categoryColor(category: string) {
   return CATEGORY_COLORS[category] ?? CATEGORY_COLORS.Other;
+}
+
+export function isManagedCategory(category: string) {
+  return MANAGED_CATEGORIES.has(category);
 }

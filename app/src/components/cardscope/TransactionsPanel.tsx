@@ -34,7 +34,7 @@ export function TransactionsPanel({ transactions }: TransactionsPanelProps) {
             Ledger
           </p>
           <h2 className="m-0 text-2xl font-bold leading-tight">
-            Recent transactions
+            Imported transactions
           </h2>
         </div>
         <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 text-muted focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 sm:w-72">

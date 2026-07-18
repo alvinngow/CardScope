@@ -5,7 +5,7 @@ export function emptyOverview(setupNotice: string | null = null): OverviewData {
     categories: [],
     months: [],
     recentStatements: [],
-    recentTransactions: [],
+    transactions: [],
     setupNotice,
     totals: {
       avgTransaction: 0,

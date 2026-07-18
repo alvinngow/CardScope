@@ -16,7 +16,7 @@ export function CardScopeDashboard() {
       <StatementOverview onImported={refresh} overview={overview} />
       {error ? <AlertBanner message={error} /> : null}
       <SpendingAnalytics isLoading={isLoading} overview={overview} />
-      <TransactionsPanel transactions={overview?.recentTransactions ?? []} />
+      <TransactionsPanel transactions={overview?.transactions ?? []} />
     </main>
   );
 }

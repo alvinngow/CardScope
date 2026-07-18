@@ -1,5 +1,5 @@
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
-import { categoryColor } from "@/lib/categories";
+import { categorizeMerchant, categoryColor, isManagedCategory } from "@/lib/categories";
 import type { ParsedStatement } from "@/lib/statementParser";
 import type {
   CategorySummary,
@@ -40,7 +40,7 @@ export async function ensureSchema() {
   if (!schemaPromise) {
     schemaPromise = getPool()
       .query(SCHEMA_SQL)
-      .then(() => getPool().query(CATEGORY_MAINTENANCE_SQL))
+      .then(() => recategorizeManagedTransactions())
       .then(() => undefined)
       .catch((error) => {
         schemaPromise = null;
@@ -137,7 +137,6 @@ export async function overviewFromDatabase(): Promise<OverviewData> {
       FROM transactions
       JOIN statements ON statements.id = transactions.statement_id
       ORDER BY transactions.transaction_date DESC, transactions.id DESC
-      LIMIT 50
     `),
     query<{
       file_name: string;
@@ -183,7 +182,7 @@ export async function overviewFromDatabase(): Promise<OverviewData> {
       transactionCount: statement.transaction_count,
       uploadedAt: statement.uploaded_at,
     })),
-    recentTransactions: transactionsResult.map<TransactionRow>((transaction) => ({
+    transactions: transactionsResult.map<TransactionRow>((transaction) => ({
       amount: roundMoney(transaction.amount),
       category: transaction.category,
       date: transaction.date,
@@ -214,6 +213,17 @@ export async function saveStatement(fileName: string, parsed: ParsedStatement) {
 
   try {
     await client.query("BEGIN");
+    const statementMonthDate = `${parsed.statementMonth}-01`;
+
+    await client.query(
+      `
+        DELETE FROM statements
+        WHERE file_name = $1
+          AND statement_month = $2::date
+      `,
+      [fileName, statementMonthDate],
+    );
+
     const statement = await client.query<{ id: number }>(
       `
         INSERT INTO statements (
@@ -232,7 +242,7 @@ export async function saveStatement(fileName: string, parsed: ParsedStatement) {
         fileName,
         parsed.issuer,
         parsed.parseMode,
-        `${parsed.statementMonth}-01`,
+        statementMonthDate,
         roundMoney(totalPositiveSpend(parsed)),
         parsed.transactions.length,
         JSON.stringify(parsed.warnings),
@@ -294,6 +304,49 @@ async function rollback(client: PoolClient) {
   }
 }
 
+async function recategorizeManagedTransactions() {
+  const result = await getPool().query<{
+    amount: number;
+    category: string;
+    id: string;
+    merchant: string;
+    raw_text: string | null;
+  }>(`
+    SELECT
+      id::text,
+      merchant,
+      category,
+      amount::float8 AS amount,
+      raw_text
+    FROM transactions
+  `);
+  const updates = [];
+
+  for (const transaction of result.rows) {
+    if (!isManagedCategory(transaction.category)) {
+      continue;
+    }
+
+    const category = categorizeMerchant(
+      `${transaction.merchant} ${transaction.raw_text ?? ""}`,
+      transaction.amount,
+    );
+
+    if (category === transaction.category) {
+      continue;
+    }
+
+    updates.push(
+      getPool().query("UPDATE transactions SET category = $1 WHERE id = $2", [
+        category,
+        transaction.id,
+      ]),
+    );
+  }
+
+  await Promise.all(updates);
+}
+
 function withCategoryShares(
   rows: Array<{ category: string; total_spend: number; transaction_count: number }>,
 ): CategorySummary[] {
@@ -346,15 +399,4 @@ CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(transaction_dat
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
 CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(merchant);
 CREATE INDEX IF NOT EXISTS idx_statements_month ON statements(statement_month DESC);
-`;
-
-const CATEGORY_MAINTENANCE_SQL = `
-UPDATE transactions
-SET category = 'Instalments'
-WHERE amount > 0
-  AND category <> 'Instalments'
-  AND (
-    merchant ~* '(^|[^a-z0-9])(easypay|ezbal|ezpy|instalment|installment)([^a-z0-9]|$)'
-    OR COALESCE(raw_text, '') ~* '(^|[^a-z0-9])(easypay|ezbal|ezpy|instalment|installment)([^a-z0-9]|$)'
-  );
 `;

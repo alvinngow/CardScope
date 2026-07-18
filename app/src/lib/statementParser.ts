@@ -25,7 +25,48 @@ type HeaderMap = {
   merchant: number;
 };
 
+type ParsedRows = {
+  transactions: ParsedTransaction[];
+  warnings: string[];
+};
+
+type PdfTextItem = {
+  str: string;
+  transform: ArrayLike<number>;
+};
+
+type PdfTextContent = {
+  items: PdfTextItem[];
+};
+
+type PdfPage = {
+  getTextContent(): Promise<PdfTextContent>;
+};
+
+type PdfDocument = {
+  getPage(pageNumber: number): Promise<PdfPage>;
+  numPages: number;
+};
+
+type PdfJsModule = {
+  getDocument(input: Uint8Array): {
+    promise: Promise<PdfDocument>;
+  };
+};
+
+type PositionedText = {
+  text: string;
+  x: number;
+  y: number;
+};
+
+type PositionedTextRow = {
+  items: PositionedText[];
+  y: number;
+};
+
 const MAX_TRANSACTION_ROWS = 2500;
+const STANDARD_CHARTERED_ROW_Y_TOLERANCE = 2.75;
 const MONTHS: Record<string, number> = {
   apr: 4,
   aug: 8,
@@ -52,10 +93,7 @@ export async function parseStatementFile(
   const parseMode = isPdf ? "pdf" : looksLikeCsvName(lowerName) ? "csv" : "text";
   const text = isPdf ? await extractPdfText(buffer) : buffer.toString("utf8");
   const statementMonth = fallbackMonth ?? extractStatementMonth(text);
-  const parsedRows =
-    parseMode === "csv"
-      ? { transactions: parseCsvTransactions(text), warnings: [] }
-      : parseTextTransactions(text, statementMonth);
+  const parsedRows = await parseRows(parseMode, text, buffer, statementMonth);
   const transactions = parsedRows.transactions
     .filter((row) => Number.isFinite(row.amount) && row.merchant && row.transactionDate)
     .slice(0, MAX_TRANSACTION_ROWS);
@@ -78,6 +116,34 @@ export async function parseStatementFile(
   };
 }
 
+async function parseRows(
+  parseMode: ParsedStatement["parseMode"],
+  text: string,
+  buffer: Buffer,
+  statementMonth?: string,
+): Promise<ParsedRows> {
+  if (parseMode === "csv") {
+    return { transactions: parseCsvTransactions(text), warnings: [] };
+  }
+
+  if (parseMode === "pdf" && isStandardCharteredStatement(text)) {
+    const positionedRows = await parseStandardCharteredPdfTransactions(buffer, statementMonth);
+
+    if (positionedRows.transactions.length) {
+      return positionedRows;
+    }
+
+    const textRows = parseTextTransactions(text, statementMonth);
+
+    return {
+      transactions: textRows.transactions,
+      warnings: [...positionedRows.warnings, ...textRows.warnings],
+    };
+  }
+
+  return parseTextTransactions(text, statementMonth);
+}
+
 async function extractPdfText(buffer: Buffer) {
   try {
     const pdfParseModule = (await import("pdf-parse")) as {
@@ -95,6 +161,20 @@ async function extractPdfText(buffer: Buffer) {
     const detail = error instanceof Error ? error.message : "Unknown PDF parsing error.";
     throw new Error(`Could not read text from this PDF. ${detail}`);
   }
+}
+
+async function loadPdfJs() {
+  const pdfJsModule = (await import("pdf-parse/lib/pdf.js/v2.0.550/build/pdf.js")) as {
+    default?: PdfJsModule;
+    getDocument?: PdfJsModule["getDocument"];
+  };
+  const pdfJs = pdfJsModule.default ?? pdfJsModule;
+
+  if (typeof pdfJs.getDocument !== "function") {
+    throw new Error("PDF row parser is unavailable.");
+  }
+
+  return pdfJs as PdfJsModule;
 }
 
 function looksLikeCsvName(fileName: string) {
@@ -164,10 +244,127 @@ function parseTextTransactions(
   };
 }
 
+async function parseStandardCharteredPdfTransactions(
+  buffer: Buffer,
+  fallbackMonth?: string,
+): Promise<ParsedRows> {
+  const statementMonth = fallbackMonth ?? new Date().toISOString().slice(0, 7);
+
+  try {
+    const pdfJs = await loadPdfJs();
+    const document = await pdfJs.getDocument(new Uint8Array(buffer)).promise;
+    const transactions: ParsedTransaction[] = [];
+
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const rows = groupPositionedTextRows(textContent.items);
+
+      for (const row of rows) {
+        const transaction = parseStandardCharteredPositionedRow(row, statementMonth);
+
+        if (transaction) {
+          transactions.push(transaction);
+        }
+      }
+    }
+
+    return {
+      transactions,
+      warnings: [],
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown PDF row parsing error.";
+
+    return {
+      transactions: [],
+      warnings: [`Standard Chartered PDF rows could not be read visually. ${detail}`],
+    };
+  }
+}
+
+function groupPositionedTextRows(items: PdfTextItem[]) {
+  const positionedItems = items
+    .map((item) => {
+      const text = item.str.replace(/\s+/g, " ").trim();
+
+      if (!text || item.transform.length < 6) {
+        return null;
+      }
+
+      return {
+        text,
+        x: item.transform[4],
+        y: item.transform[5],
+      };
+    })
+    .filter((item): item is PositionedText => item !== null)
+    .sort((a, b) => b.y - a.y || a.x - b.x);
+  const rows: PositionedTextRow[] = [];
+
+  for (const item of positionedItems) {
+    const row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= STANDARD_CHARTERED_ROW_Y_TOLERANCE);
+
+    if (row) {
+      row.items.push(item);
+      row.y = (row.y * (row.items.length - 1) + item.y) / row.items.length;
+      continue;
+    }
+
+    rows.push({ items: [item], y: item.y });
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    items: row.items.sort((a, b) => a.x - b.x),
+  }));
+}
+
+function parseStandardCharteredPositionedRow(
+  row: PositionedTextRow,
+  fallbackMonth: string,
+): ParsedTransaction | null {
+  const dateItem = row.items.find((item) => item.x >= 35 && item.x <= 80 && /^\d{2}\s+[A-Za-z]{3}$/i.test(item.text));
+  const amountText = row.items
+    .filter((item) => item.x >= 480)
+    .map((item) => item.text)
+    .join("")
+    .replace(/\s+/g, "");
+  const amountMatch = amountText.match(/^(\d[\d,]*\.\d{2})(CR)?$/i);
+
+  if (!dateItem || !amountMatch) {
+    return null;
+  }
+
+  const dateMatch = dateItem.text.match(/^(\d{2})\s+([A-Za-z]{3})$/i);
+  const transactionDate = dateMatch ? parseDayMonthDate(dateMatch[1], dateMatch[2], fallbackMonth) : null;
+  const amount = parseMoney(amountMatch[1], amountMatch[2]);
+  const merchant = cleanMerchant(
+    row.items
+      .filter((item) => item.x >= 125 && item.x < 350)
+      .map((item) => item.text)
+      .join(" "),
+  );
+
+  if (!transactionDate || amount === null || !merchant || merchant.length < 3) {
+    return null;
+  }
+
+  const rawText = row.items.map((item) => item.text).join(" | ");
+
+  return {
+    amount,
+    category: categorizeMerchant(merchant, amount),
+    merchant,
+    rawText,
+    transactionDate,
+  };
+}
+
 function parseStandardCharteredTransactions(
   text: string,
   fallbackMonth?: string,
-): { transactions: ParsedTransaction[]; warnings: string[] } {
+): ParsedRows {
   const statementMonth = fallbackMonth ?? extractStatementMonth(text) ?? new Date().toISOString().slice(0, 7);
   const lines = normalizeTextLines(text);
   const pages = splitStandardCharteredPages(lines);

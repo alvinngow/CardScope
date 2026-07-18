@@ -49,7 +49,7 @@ export type OverviewData = {
   categories: CategorySummary[];
   months: MonthSummary[];
   recentStatements: StatementRow[];
-  recentTransactions: TransactionRow[];
+  transactions: TransactionRow[];
   setupNotice: string | null;
   totals: Totals;
   topMerchants: MerchantSummary[];
