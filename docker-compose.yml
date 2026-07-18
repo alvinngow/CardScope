@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://cardscope:cardscope_password@postgres:5432/cardscope
+      NEXT_PUBLIC_APP_URL: http://raspberrypi.local:3000
+      PG_POOL_MAX: 6
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: cardscope
+      POSTGRES_USER: cardscope
+      POSTGRES_PASSWORD: cardscope_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cardscope -d cardscope"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - cardscope-postgres:/var/lib/postgresql/data
+
+volumes:
+  cardscope-postgres:
