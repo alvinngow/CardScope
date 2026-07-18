@@ -26,6 +26,20 @@ type HeaderMap = {
 };
 
 const MAX_TRANSACTION_ROWS = 2500;
+const MONTHS: Record<string, number> = {
+  apr: 4,
+  aug: 8,
+  dec: 12,
+  feb: 2,
+  jan: 1,
+  jul: 7,
+  jun: 6,
+  mar: 3,
+  may: 5,
+  nov: 11,
+  oct: 10,
+  sep: 9,
+};
 
 export async function parseStatementFile(
   fileName: string,
@@ -37,16 +51,17 @@ export async function parseStatementFile(
   const isPdf = contentType.includes("pdf") || lowerName.endsWith(".pdf");
   const parseMode = isPdf ? "pdf" : looksLikeCsvName(lowerName) ? "csv" : "text";
   const text = isPdf ? await extractPdfText(buffer) : buffer.toString("utf8");
-  const rows =
+  const statementMonth = fallbackMonth ?? extractStatementMonth(text);
+  const parsedRows =
     parseMode === "csv"
-      ? parseCsvTransactions(text)
-      : parseLooseTextTransactions(text, fallbackMonth);
-  const transactions = rows
+      ? { transactions: parseCsvTransactions(text), warnings: [] }
+      : parseTextTransactions(text, statementMonth);
+  const transactions = parsedRows.transactions
     .filter((row) => Number.isFinite(row.amount) && row.merchant && row.transactionDate)
     .slice(0, MAX_TRANSACTION_ROWS);
-  const warnings: string[] = [];
+  const warnings: string[] = [...parsedRows.warnings];
 
-  if (rows.length > MAX_TRANSACTION_ROWS) {
+  if (parsedRows.transactions.length > MAX_TRANSACTION_ROWS) {
     warnings.push(`Only the first ${MAX_TRANSACTION_ROWS} transaction rows were imported.`);
   }
 
@@ -57,7 +72,7 @@ export async function parseStatementFile(
   return {
     issuer: detectIssuer(text, fileName),
     parseMode,
-    statementMonth: inferStatementMonth(transactions, fallbackMonth),
+    statementMonth: inferStatementMonth(transactions, statementMonth),
     transactions,
     warnings,
   };
@@ -131,12 +146,81 @@ function parseCsvTransactions(text: string): ParsedTransaction[] {
   return transactions;
 }
 
+function parseTextTransactions(
+  text: string,
+  fallbackMonth?: string,
+): { transactions: ParsedTransaction[]; warnings: string[] } {
+  if (isStandardCharteredStatement(text)) {
+    const parsed = parseStandardCharteredTransactions(text, fallbackMonth);
+
+    if (parsed.transactions.length) {
+      return parsed;
+    }
+  }
+
+  return {
+    transactions: parseLooseTextTransactions(text, fallbackMonth),
+    warnings: [],
+  };
+}
+
+function parseStandardCharteredTransactions(
+  text: string,
+  fallbackMonth?: string,
+): { transactions: ParsedTransaction[]; warnings: string[] } {
+  const statementMonth = fallbackMonth ?? extractStatementMonth(text) ?? new Date().toISOString().slice(0, 7);
+  const lines = normalizeTextLines(text);
+  const pages = splitStandardCharteredPages(lines);
+  const warnings: string[] = [];
+  const transactions: ParsedTransaction[] = [];
+
+  for (const pageLines of pages) {
+    const tableIndex = pageLines.findIndex(
+      (line, index) => line === "Transaction" && pageLines[index + 1] === "Date",
+    );
+
+    if (tableIndex < 0) {
+      continue;
+    }
+
+    const descriptions = collectStandardCharteredDescriptions(pageLines.slice(0, tableIndex));
+    const rows = pageLines
+      .slice(tableIndex + 1)
+      .map((line) => parseStandardCharteredAmountRow(line, statementMonth))
+      .filter((row): row is { amount: number; rawText: string; transactionDate: string } => row !== null);
+    const pairCount = Math.min(descriptions.length, rows.length);
+
+    if (descriptions.length !== rows.length) {
+      warnings.push("A Standard Chartered page had unmatched descriptions and amount rows.");
+    }
+
+    for (let index = 0; index < pairCount; index += 1) {
+      const merchant = cleanMerchant(descriptions[index]);
+      const row = rows[index];
+
+      if (!merchant) {
+        continue;
+      }
+
+      transactions.push({
+        amount: row.amount,
+        category: categorizeMerchant(merchant, row.amount),
+        merchant,
+        rawText: `${row.rawText} | ${descriptions[index]}`,
+        transactionDate: row.transactionDate,
+      });
+    }
+  }
+
+  return {
+    transactions,
+    warnings: [...new Set(warnings)],
+  };
+}
+
 function parseLooseTextTransactions(text: string, fallbackMonth?: string): ParsedTransaction[] {
   const inferredYear = fallbackMonth ? Number(fallbackMonth.slice(0, 4)) : new Date().getFullYear();
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+  const lines = normalizeTextLines(text);
   const transactions: ParsedTransaction[] = [];
 
   for (const line of lines) {
@@ -183,6 +267,137 @@ function parseLooseTextTransactions(text: string, fallbackMonth?: string): Parse
   }
 
   return transactions;
+}
+
+function normalizeTextLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function isStandardCharteredStatement(text: string) {
+  return /standard chartered/i.test(text);
+}
+
+function splitStandardCharteredPages(lines: string[]) {
+  const pages: string[][] = [];
+  let currentPage: string[] = [];
+
+  for (const line of lines) {
+    if (/^Page of \d+/i.test(line) && currentPage.length) {
+      pages.push(currentPage);
+      currentPage = [];
+    }
+
+    currentPage.push(line);
+  }
+
+  if (currentPage.length) {
+    pages.push(currentPage);
+  }
+
+  return pages;
+}
+
+function collectStandardCharteredDescriptions(lines: string[]) {
+  const descriptions: string[] = [];
+  let shouldReadRefDescription = false;
+  let isAccountSummarySection = false;
+
+  for (const line of lines) {
+    if (/^Transaction Ref\b/i.test(line)) {
+      shouldReadRefDescription = true;
+      isAccountSummarySection = false;
+      continue;
+    }
+
+    if (isStandardCharteredAccountSummaryLine(line)) {
+      shouldReadRefDescription = false;
+      isAccountSummarySection = true;
+      continue;
+    }
+
+    if (shouldReadRefDescription) {
+      if (!isStandardCharteredIgnoredDescriptionLine(line)) {
+        descriptions.push(line);
+      }
+
+      shouldReadRefDescription = false;
+      continue;
+    }
+
+    if (!isAccountSummarySection && isStandardCharteredStandaloneDescription(line)) {
+      descriptions.push(line);
+    }
+  }
+
+  return descriptions;
+}
+
+function parseStandardCharteredAmountRow(line: string, fallbackMonth: string) {
+  const match = line.match(/^(\d{2})\s+([A-Za-z]{3})\s*(\d{2})\s+([A-Za-z]{3})(\d[\d,]*\.\d{2})(CR)?$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const transactionDate = parseDayMonthDate(match[1], match[2], fallbackMonth);
+  const amount = parseMoney(match[5], match[6]);
+
+  if (!transactionDate || amount === null) {
+    return null;
+  }
+
+  return {
+    amount,
+    rawText: line,
+    transactionDate,
+  };
+}
+
+function parseDayMonthDate(day: string, monthName: string, fallbackMonth: string) {
+  const fallbackYear = Number(fallbackMonth.slice(0, 4));
+  const fallbackMonthNumber = Number(fallbackMonth.slice(5, 7));
+  const month = MONTHS[monthName.slice(0, 3).toLowerCase()];
+
+  if (!month) {
+    return null;
+  }
+
+  const year = month > fallbackMonthNumber ? fallbackYear - 1 : fallbackYear;
+  return validDate(year, month, Number(day));
+}
+
+function isStandardCharteredAccountSummaryLine(line: string) {
+  return (
+    /\bcredit card and personal loan statement\b/i.test(line) ||
+    /\bsimply cash credit card\b/i.test(line) ||
+    /^account\/card no\b/i.test(line) ||
+    /^approved credit limit\b/i.test(line) ||
+    /^available credit limit\b/i.test(line) ||
+    /^important information\b/i.test(line) ||
+    /^payment due date:/i.test(line) ||
+    /^previous balance/i.test(line) ||
+    /^statement date:/i.test(line) ||
+    /^total$/i.test(line) ||
+    /^\d{4}-\d{2}XX/i.test(line) ||
+    /^=+/.test(line) ||
+    /^[\d,.]+$/.test(line)
+  );
+}
+
+function isStandardCharteredIgnoredDescriptionLine(line: string) {
+  return (
+    /^Page of \d+/i.test(line) ||
+    /^Standard Chartered Bank\b/i.test(line) ||
+    /^This statement serves\b/i.test(line) ||
+    isStandardCharteredAccountSummaryLine(line)
+  );
+}
+
+function isStandardCharteredStandaloneDescription(line: string) {
+  return /^(annual fee|cashback|ezbal|ezpy|gst charges)/i.test(line);
 }
 
 function detectDelimiter(text: string) {
@@ -427,9 +642,26 @@ function inferStatementMonth(transactions: ParsedTransaction[], fallbackMonth?: 
   return inferred ?? fallbackMonth ?? new Date().toISOString().slice(0, 7);
 }
 
+function extractStatementMonth(text: string) {
+  const statementDate = text.match(/Statement Date:\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/i);
+
+  if (!statementDate) {
+    return undefined;
+  }
+
+  const month = MONTHS[statementDate[2].slice(0, 3).toLowerCase()];
+
+  if (!month) {
+    return undefined;
+  }
+
+  return `${statementDate[3]}-${String(month).padStart(2, "0")}`;
+}
+
 function detectIssuer(text: string, fileName: string) {
   const haystack = `${fileName}\n${text.slice(0, 4000)}`.toLowerCase();
   const issuers = [
+    ["standard chartered", "Standard Chartered"],
     ["american express", "American Express"],
     ["amex", "American Express"],
     ["bank of america", "Bank of America"],
@@ -439,9 +671,15 @@ function detectIssuer(text: string, fileName: string) {
     ["discover", "Discover"],
     ["wells fargo", "Wells Fargo"],
   ] as const;
-  const match = issuers.find(([needle]) => haystack.includes(needle));
+  const match = issuers.find(([needle]) => {
+    return new RegExp(`\\b${escapeRegExp(needle)}\\b`).test(haystack);
+  });
 
   return match?.[1] ?? "Credit card";
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function countOccurrences(value: string, needle: string) {

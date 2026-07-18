@@ -40,6 +40,7 @@ export async function ensureSchema() {
   if (!schemaPromise) {
     schemaPromise = getPool()
       .query(SCHEMA_SQL)
+      .then(() => getPool().query(CATEGORY_MAINTENANCE_SQL))
       .then(() => undefined)
       .catch((error) => {
         schemaPromise = null;
@@ -345,4 +346,15 @@ CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(transaction_dat
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
 CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(merchant);
 CREATE INDEX IF NOT EXISTS idx_statements_month ON statements(statement_month DESC);
+`;
+
+const CATEGORY_MAINTENANCE_SQL = `
+UPDATE transactions
+SET category = 'Instalments'
+WHERE amount > 0
+  AND category <> 'Instalments'
+  AND (
+    merchant ~* '(^|[^a-z0-9])(easypay|ezbal|ezpy|instalment|installment)([^a-z0-9]|$)'
+    OR COALESCE(raw_text, '') ~* '(^|[^a-z0-9])(easypay|ezbal|ezpy|instalment|installment)([^a-z0-9]|$)'
+  );
 `;

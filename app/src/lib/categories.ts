@@ -8,6 +8,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Bills": "#5d737e",
   "Health": "#7a4e48",
   "Entertainment": "#8f6a00",
+  "Instalments": "#2563eb",
   "Fees": "#8f2d1c",
   "Payments & credits": "#2f8f5b",
   "Other": "#66736f",
@@ -132,6 +133,10 @@ const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
   {
     category: "Entertainment",
     keywords: ["cinema", "concert", "hulu", "movie", "steam", "ticket", "theater"],
+  },
+  {
+    category: "Instalments",
+    keywords: ["easypay", "ezbal", "ezpy", "instalment", "installment"],
   },
   {
     category: "Fees",
