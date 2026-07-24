@@ -19,6 +19,8 @@ type StatementImportResponse = {
   warningCount?: number;
 };
 
+const STATEMENT_MONTH_STORAGE_KEY = "cardscope-statement-month";
+
 export function StatementImportPanel({
   onComplete,
   onImported,
@@ -27,8 +29,13 @@ export function StatementImportPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [statementMonth, setStatementMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [statementMonth, setStatementMonth] = useState(initialStatementMonth);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function updateStatementMonth(value: string) {
+    setStatementMonth(value);
+    localStorage.setItem(STATEMENT_MONTH_STORAGE_KEY, value);
+  }
 
   async function uploadFile(file: File) {
     setIsUploading(true);
@@ -96,11 +103,11 @@ export function StatementImportPanel({
       <StatementMonthPicker
         disabled={isUploading}
         value={statementMonth}
-        onChange={setStatementMonth}
+        onChange={updateStatementMonth}
       />
 
       <button
-        className={`flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 font-extrabold text-brand-deep transition hover:border-brand hover:shadow-lg ${
+        className={`flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 font-extrabold text-brand-deep transition hover:border-brand hover:shadow-lg dark:text-brand ${
           isDragging ? "border-brand bg-brand/10 ring-2 ring-brand/20" : "border-muted/40 bg-brand/5"
         }`}
         type="button"
@@ -132,4 +139,18 @@ export function StatementImportPanel({
       ) : null}
     </form>
   );
+}
+
+function initialStatementMonth() {
+  if (typeof localStorage === "undefined") {
+    return currentMonth();
+  }
+
+  const storedMonth = localStorage.getItem(STATEMENT_MONTH_STORAGE_KEY);
+
+  return storedMonth && /^\d{4}-\d{2}$/.test(storedMonth) ? storedMonth : currentMonth();
+}
+
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
 }

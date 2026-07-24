@@ -13,7 +13,7 @@ export function MetricCard({ detail, label, tone = "default", value }: MetricCar
       className={`flex min-h-44 flex-col justify-between rounded-lg border p-4 shadow-panel ${
         isPrimary
           ? "border-brand-deep bg-brand-deep text-white"
-          : "border-line bg-white/90 text-ink"
+          : "border-line bg-surface/90 text-ink"
       }`}
     >
       <span

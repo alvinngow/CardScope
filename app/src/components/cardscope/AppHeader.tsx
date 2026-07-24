@@ -1,4 +1,7 @@
+"use client";
+
 import { CreditCard, RefreshCw } from "lucide-react";
+import { ThemeToggle } from "@/components/cardscope/ThemeToggle";
 
 type AppHeaderProps = {
   onRefresh: () => void;
@@ -12,7 +15,7 @@ export function AppHeader({ onRefresh }: AppHeaderProps) {
           <CreditCard size={22} />
         </div>
         <div>
-          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep">
+          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep dark:text-brand">
             CardScope
           </p>
           <h1 className="m-0 text-2xl font-bold leading-tight">
@@ -22,6 +25,7 @@ export function AppHeader({ onRefresh }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center justify-between gap-2.5 sm:justify-start">
+        <ThemeToggle />
         <button
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface text-ink transition hover:border-brand hover:shadow-lg"
           type="button"

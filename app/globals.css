@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-canvas: #f5f7f6;
   --color-ink: #17211f;
@@ -16,6 +18,26 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html.dark {
+    --color-canvas: #101714;
+    --color-ink: #edf4ef;
+    --color-muted: #9dafaa;
+    --color-line: #2b3b36;
+    --color-surface: #18211e;
+    --color-surface-soft: #22312c;
+    --color-brand: #36bfae;
+    --color-brand-deep: #0c5751;
+    --color-coral: #e06a52;
+    --color-gold: #d5a528;
+    --color-positive: #69d49f;
+    --shadow-panel: 0 18px 60px rgba(0, 0, 0, 0.34);
+    color-scheme: dark;
+  }
+
   html {
     background: var(--color-canvas);
   }
@@ -31,8 +53,16 @@
     margin: 0;
   }
 
+  html.dark body {
+    background:
+      linear-gradient(180deg, rgba(54, 191, 174, 0.14), transparent 320px),
+      var(--color-canvas);
+  }
+
   button,
-  input {
+  input,
+  select,
+  textarea {
     font: inherit;
   }
 

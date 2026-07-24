@@ -10,10 +10,10 @@ type TopMerchantsListProps = {
 
 export function TopMerchantsList({ isLoading, merchants }: TopMerchantsListProps) {
   return (
-    <div className="rounded-lg border border-line bg-white/90 p-5 shadow-panel max-lg:col-span-full">
+    <div className="rounded-lg border border-line bg-surface/90 p-5 shadow-panel max-lg:col-span-full">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
-          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep">
+          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep dark:text-brand">
             Merchants
           </p>
           <h2 className="m-0 text-2xl font-bold leading-tight">

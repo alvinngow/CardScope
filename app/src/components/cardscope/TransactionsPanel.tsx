@@ -27,10 +27,10 @@ export function TransactionsPanel({ transactions }: TransactionsPanelProps) {
   }, [query, transactions]);
 
   return (
-    <section className="mb-6 rounded-lg border border-line bg-white/90 p-5">
+    <section className="mb-6 rounded-lg border border-line bg-surface/90 p-5">
       <div className="mb-4 flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep">
+          <p className="mb-2 text-xs font-extrabold uppercase leading-none text-brand-deep dark:text-brand">
             Ledger
           </p>
           <h2 className="m-0 text-2xl font-bold leading-tight">

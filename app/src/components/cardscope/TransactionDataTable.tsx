@@ -34,11 +34,12 @@ type TransactionDataTableProps = {
 };
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const LEDGER_PAGE_SIZE_STORAGE_KEY = "cardscope-ledger-page-size";
 
 export function TransactionDataTable({ transactions }: TransactionDataTableProps) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: PAGE_SIZE_OPTIONS[0],
+    pageSize: initialPageSize(),
   });
   const columns = useMemo<ColumnDef<TransactionRow>[]>(
     () => [
@@ -146,7 +147,12 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
             <span className="whitespace-nowrap">Rows per page</span>
             <Select
               value={`${pagination.pageSize}`}
-              onValueChange={(value) => table.setPageSize(Number(value))}
+              onValueChange={(value) => {
+                const pageSize = Number(value);
+
+                localStorage.setItem(LEDGER_PAGE_SIZE_STORAGE_KEY, `${pageSize}`);
+                table.setPageSize(pageSize);
+              }}
             >
               <SelectTrigger className="w-20">
                 <SelectValue />
@@ -209,4 +215,14 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
       </div>
     </div>
   );
+}
+
+function initialPageSize() {
+  if (typeof localStorage === "undefined") {
+    return PAGE_SIZE_OPTIONS[0];
+  }
+
+  const storedPageSize = Number(localStorage.getItem(LEDGER_PAGE_SIZE_STORAGE_KEY));
+
+  return PAGE_SIZE_OPTIONS.includes(storedPageSize) ? storedPageSize : PAGE_SIZE_OPTIONS[0];
 }
