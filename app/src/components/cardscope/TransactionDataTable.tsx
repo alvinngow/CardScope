@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   type ColumnDef,
@@ -8,39 +8,34 @@ import {
   type PaginationState,
   type Updater,
   useReactTable,
-} from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import { TransactionCategorySelect } from "@/components/cardscope/TransactionCategorySelect";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+} from '@tanstack/react-table';
+import { useCallback, useMemo, useState } from 'react';
+import { DataTablePagination } from '@/components/cardscope/DataTablePagination';
+import { TransactionCategorySelect } from '@/components/cardscope/TransactionCategorySelect';
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { useLocalStoragePreference } from "@/hooks/useLocalStoragePreference";
-import { dateLabel, money } from "@/lib/formatters";
-import { saveTransactionCategory } from "@/lib/transactionClient";
-import type { TransactionRow } from "@/lib/types";
+} from '@/components/ui/table';
+import { useLocalStoragePreference } from '@/hooks/useLocalStoragePreference';
+import { dateLabel, money } from '@/lib/formatters';
+import { saveTransactionCategory } from '@/lib/transactionClient';
+import type { TransactionRow } from '@/lib/types';
 
 type TransactionDataTableProps = {
   categoryOptions: string[];
+  ledgerTotalAmount: number;
+  ledgerTotalLabel: string;
   onCategoryChanged: () => Promise<void> | void;
   transactions: TransactionRow[];
 };
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
-const LEDGER_PAGE_SIZE_STORAGE_KEY = "cardscope-ledger-page-size";
+const LEDGER_PAGE_SIZE_STORAGE_KEY = 'cardscope-ledger-page-size';
 
 export function TransactionDataTable({
   categoryOptions,
@@ -52,21 +47,30 @@ export function TransactionDataTable({
     key: LEDGER_PAGE_SIZE_STORAGE_KEY,
     parse: parsePageSize,
   });
-  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
+  const [categoryOverrides, setCategoryOverrides] = useState<
+    Record<string, string>
+  >({});
   const [pageIndex, setPageIndex] = useState(0);
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
     [pageIndex, pageSize],
   );
   const handleCategoryChange = useCallback(
-    async (transactionId: string, currentCategory: string, nextCategory: string) => {
+    async (
+      transactionId: string,
+      currentCategory: string,
+      nextCategory: string,
+    ) => {
       setCategoryOverrides((current) => ({
         ...current,
         [transactionId]: nextCategory,
       }));
 
       try {
-        const saved = await saveTransactionCategory(transactionId, nextCategory);
+        const saved = await saveTransactionCategory(
+          transactionId,
+          nextCategory,
+        );
 
         setCategoryOverrides((current) => ({
           ...current,
@@ -87,24 +91,29 @@ export function TransactionDataTable({
   const columns = useMemo<ColumnDef<TransactionRow>[]>(
     () => [
       {
-        accessorKey: "date",
-        header: "Date",
+        accessorKey: 'date',
+        header: 'Date',
         cell: ({ row }) => (
-          <span className="whitespace-nowrap">{dateLabel(row.original.date)}</span>
+          <span className='whitespace-nowrap'>
+            {dateLabel(row.original.date)}
+          </span>
         ),
       },
       {
-        accessorKey: "merchant",
-        header: "Merchant",
+        accessorKey: 'merchant',
+        header: 'Merchant',
         cell: ({ row }) => (
-          <span className="block max-w-xs truncate font-bold">{row.original.merchant}</span>
+          <span className='block max-w-xs truncate font-bold'>
+            {row.original.merchant}
+          </span>
         ),
       },
       {
-        accessorKey: "category",
-        header: "Category",
+        accessorKey: 'category',
+        header: 'Category',
         cell: ({ row }) => {
-          const category = categoryOverrides[row.original.id] ?? row.original.category;
+          const category =
+            categoryOverrides[row.original.id] ?? row.original.category;
 
           return (
             <TransactionCategorySelect
@@ -119,15 +128,17 @@ export function TransactionDataTable({
         },
       },
       {
-        accessorKey: "statementName",
-        header: "Statement",
+        accessorKey: 'statementName',
+        header: 'Statement',
         cell: ({ row }) => (
-          <span className="block max-w-56 truncate text-muted">{row.original.statementName}</span>
+          <span className='block max-w-56 truncate text-muted'>
+            {row.original.statementName}
+          </span>
         ),
       },
       {
-        accessorKey: "amount",
-        header: () => <span className="block text-right">Amount</span>,
+        accessorKey: 'amount',
+        header: () => <span className='block text-right'>Amount</span>,
         cell: ({ row }) => {
           const amount = row.original.amount;
           const isCredit = amount < 0;
@@ -135,10 +146,10 @@ export function TransactionDataTable({
           return (
             <span
               className={`block whitespace-nowrap text-right font-extrabold ${
-                isCredit ? "text-positive" : ""
+                isCredit ? 'text-positive' : ''
               }`}
             >
-              {isCredit ? "-" : ""}
+              {isCredit ? '-' : ''}
               {money.format(Math.abs(amount))}
             </span>
           );
@@ -161,21 +172,33 @@ export function TransactionDataTable({
   });
   const rows = table.getRowModel().rows;
   const totalRows = table.getPrePaginationRowModel().rows.length;
-  const firstRow = totalRows ? pagination.pageIndex * pagination.pageSize + 1 : 0;
-  const lastRow = totalRows ? Math.min(totalRows, firstRow + rows.length - 1) : 0;
+  const firstRow = totalRows
+    ? pagination.pageIndex * pagination.pageSize + 1
+    : 0;
+  const lastRow = totalRows
+    ? Math.min(totalRows, firstRow + rows.length - 1)
+    : 0;
+  const pageTotal = useMemo(
+    () => rows.reduce((total, row) => total + row.original.amount, 0),
+    [rows],
+  );
+  const isCreditPageTotal = pageTotal < 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-line">
-        <Table className="min-w-full">
+    <div className='flex flex-col gap-4'>
+      <div className='rounded-lg border border-line'>
+        <Table className='min-w-full'>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+              <TableRow key={headerGroup.id} className='hover:bg-transparent'>
                 {headerGroup.headers.map((header) => (
                   <TableHead key={header.id}>
                     {header.isPlaceholder
                       ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -192,90 +215,57 @@ export function TransactionDataTable({
               </TableRow>
             ))}
           </TableBody>
+          <TableFooter>
+            <TableRow className='hover:bg-surface-soft'>
+              <TableCell colSpan={4} className='font-extrabold text-ink'>
+                Page total
+              </TableCell>
+              <TableCell>
+                <span
+                  className={`block whitespace-nowrap text-right font-extrabold ${
+                    isCreditPageTotal ? 'text-positive' : ''
+                  }`}
+                >
+                  {isCreditPageTotal ? '-' : ''}
+                  {money.format(Math.abs(pageTotal))}
+                </span>
+              </TableCell>
+            </TableRow>
+          </TableFooter>
         </Table>
       </div>
-      <div className="flex flex-col gap-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          Showing {firstRow}-{lastRow} of {totalRows}
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap">Rows per page</span>
-            <Select
-              value={`${pagination.pageSize}`}
-              onValueChange={(value) => {
-                setPageIndex(0);
-                setPageSize(Number(value));
-              }}
-            >
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {PAGE_SIZE_OPTIONS.map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              aria-label="First page"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.setPageIndex(0)}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronsLeft size={16} />
-            </Button>
-            <Button
-              aria-label="Previous page"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronLeft size={16} />
-            </Button>
-            <span className="px-2 text-ink">
-              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-            </span>
-            <Button
-              aria-label="Next page"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronRight size={16} />
-            </Button>
-            <Button
-              aria-label="Last page"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronsRight size={16} />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <DataTablePagination
+        canNextPage={table.getCanNextPage()}
+        canPreviousPage={table.getCanPreviousPage()}
+        firstRow={firstRow}
+        lastRow={lastRow}
+        onFirstPage={() => table.setPageIndex(0)}
+        onLastPage={() => table.setPageIndex(Math.max(table.getPageCount() - 1, 0))}
+        onNextPage={() => table.nextPage()}
+        onPageSizeChange={(nextPageSize) => {
+          setPageIndex(0);
+          setPageSize(nextPageSize);
+        }}
+        onPreviousPage={() => table.previousPage()}
+        pageCount={table.getPageCount()}
+        pageIndex={table.getState().pagination.pageIndex}
+        pageSize={pagination.pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        totalRows={totalRows}
+      />
     </div>
   );
 
   function handlePaginationChange(updater: Updater<PaginationState>) {
-    const nextPagination = typeof updater === "function" ? updater(pagination) : updater;
+    const nextPagination =
+      typeof updater === 'function' ? updater(pagination) : updater;
 
     setPageIndex(nextPagination.pageIndex);
 
-    if (nextPagination.pageSize !== pageSize && PAGE_SIZE_OPTIONS.includes(nextPagination.pageSize)) {
+    if (
+      nextPagination.pageSize !== pageSize &&
+      PAGE_SIZE_OPTIONS.includes(nextPagination.pageSize)
+    ) {
       setPageSize(nextPagination.pageSize);
     }
   }
