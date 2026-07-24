@@ -6,6 +6,7 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   type PaginationState,
+  type Updater,
   useReactTable,
 } from "@tanstack/react-table";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
@@ -26,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useLocalStoragePreference } from "@/hooks/useLocalStoragePreference";
 import { dateLabel, money } from "@/lib/formatters";
 import type { TransactionRow } from "@/lib/types";
 
@@ -37,10 +39,17 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const LEDGER_PAGE_SIZE_STORAGE_KEY = "cardscope-ledger-page-size";
 
 export function TransactionDataTable({ transactions }: TransactionDataTableProps) {
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: initialPageSize(),
+  const [pageSize, setPageSize] = useLocalStoragePreference({
+    fallback: PAGE_SIZE_OPTIONS[0],
+    key: LEDGER_PAGE_SIZE_STORAGE_KEY,
+    parse: parsePageSize,
   });
+  const [pageIndex, setPageIndex] = useState(0);
+  const pagination = useMemo<PaginationState>(
+    () => ({ pageIndex, pageSize }),
+    [pageIndex, pageSize],
+  );
+
   const columns = useMemo<ColumnDef<TransactionRow>[]>(
     () => [
       {
@@ -98,7 +107,7 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
     data: transactions,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    onPaginationChange: setPagination,
+    onPaginationChange: handlePaginationChange,
     state: {
       pagination,
     },
@@ -148,10 +157,8 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
             <Select
               value={`${pagination.pageSize}`}
               onValueChange={(value) => {
-                const pageSize = Number(value);
-
-                localStorage.setItem(LEDGER_PAGE_SIZE_STORAGE_KEY, `${pageSize}`);
-                table.setPageSize(pageSize);
+                setPageIndex(0);
+                setPageSize(Number(value));
               }}
             >
               <SelectTrigger className="w-20">
@@ -215,14 +222,20 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
       </div>
     </div>
   );
+
+  function handlePaginationChange(updater: Updater<PaginationState>) {
+    const nextPagination = typeof updater === "function" ? updater(pagination) : updater;
+
+    setPageIndex(nextPagination.pageIndex);
+
+    if (nextPagination.pageSize !== pageSize && PAGE_SIZE_OPTIONS.includes(nextPagination.pageSize)) {
+      setPageSize(nextPagination.pageSize);
+    }
+  }
 }
 
-function initialPageSize() {
-  if (typeof localStorage === "undefined") {
-    return PAGE_SIZE_OPTIONS[0];
-  }
+function parsePageSize(storedPageSize: string | null) {
+  const parsedPageSize = Number(storedPageSize);
 
-  const storedPageSize = Number(localStorage.getItem(LEDGER_PAGE_SIZE_STORAGE_KEY));
-
-  return PAGE_SIZE_OPTIONS.includes(storedPageSize) ? storedPageSize : PAGE_SIZE_OPTIONS[0];
+  return PAGE_SIZE_OPTIONS.includes(parsedPageSize) ? parsedPageSize : null;
 }

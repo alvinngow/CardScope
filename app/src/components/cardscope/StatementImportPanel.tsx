@@ -1,8 +1,9 @@
 "use client";
 
 import { Database, UploadCloud } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { StatementMonthPicker } from "@/components/cardscope/StatementMonthPicker";
+import { useLocalStoragePreference } from "@/hooks/useLocalStoragePreference";
 import { monthLabel } from "@/lib/formatters";
 
 type StatementImportPanelProps = {
@@ -29,13 +30,13 @@ export function StatementImportPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [statementMonth, setStatementMonth] = useState(initialStatementMonth);
+  const fallbackStatementMonth = useMemo(() => currentMonth(), []);
+  const [statementMonth, setStatementMonth] = useLocalStoragePreference({
+    fallback: fallbackStatementMonth,
+    key: STATEMENT_MONTH_STORAGE_KEY,
+    parse: parseStatementMonth,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function updateStatementMonth(value: string) {
-    setStatementMonth(value);
-    localStorage.setItem(STATEMENT_MONTH_STORAGE_KEY, value);
-  }
 
   async function uploadFile(file: File) {
     setIsUploading(true);
@@ -103,7 +104,7 @@ export function StatementImportPanel({
       <StatementMonthPicker
         disabled={isUploading}
         value={statementMonth}
-        onChange={updateStatementMonth}
+        onChange={setStatementMonth}
       />
 
       <button
@@ -141,14 +142,8 @@ export function StatementImportPanel({
   );
 }
 
-function initialStatementMonth() {
-  if (typeof localStorage === "undefined") {
-    return currentMonth();
-  }
-
-  const storedMonth = localStorage.getItem(STATEMENT_MONTH_STORAGE_KEY);
-
-  return storedMonth && /^\d{4}-\d{2}$/.test(storedMonth) ? storedMonth : currentMonth();
+function parseStatementMonth(storedMonth: string | null) {
+  return storedMonth && /^\d{4}-\d{2}$/.test(storedMonth) ? storedMonth : null;
 }
 
 function currentMonth() {
