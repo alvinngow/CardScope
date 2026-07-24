@@ -157,7 +157,6 @@ export async function overviewFromDatabase(): Promise<OverviewData> {
         uploaded_at::text
       FROM statements
       ORDER BY uploaded_at DESC
-      LIMIT 10
     `),
   ]);
 
@@ -291,6 +290,24 @@ export async function saveStatement(fileName: string, parsed: ParsedStatement) {
   } finally {
     client.release();
   }
+}
+
+export async function deleteStatement(statementId: string) {
+  await ensureSchema();
+
+  if (!/^\d+$/.test(statementId)) {
+    return false;
+  }
+
+  const result = await getPool().query(
+    `
+      DELETE FROM statements
+      WHERE id = $1
+    `,
+    [statementId],
+  );
+
+  return (result.rowCount ?? 0) > 0;
 }
 
 async function query<T extends QueryResultRow>(sql: string, params: unknown[] = []) {

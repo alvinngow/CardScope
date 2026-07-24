@@ -1,11 +1,12 @@
 "use client";
 
-import { Database, FileText, UploadCloud } from "lucide-react";
+import { Database, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 import { StatementMonthPicker } from "@/components/cardscope/StatementMonthPicker";
 import { monthLabel } from "@/lib/formatters";
 
 type StatementImportPanelProps = {
+  onComplete?: (message: string) => void;
   onImported: () => Promise<void>;
   setupNotice: string | null | undefined;
 };
@@ -18,7 +19,11 @@ type StatementImportResponse = {
   warningCount?: number;
 };
 
-export function StatementImportPanel({ onImported, setupNotice }: StatementImportPanelProps) {
+export function StatementImportPanel({
+  onComplete,
+  onImported,
+  setupNotice,
+}: StatementImportPanelProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,12 +49,13 @@ export function StatementImportPanel({ onImported, setupNotice }: StatementImpor
         throw new Error(payload.error ?? "The statement could not be imported.");
       }
 
-      setNotice(
-        `Imported ${payload.transactionCount ?? 0} transactions for ${
-          payload.statementMonth ? monthLabel(payload.statementMonth) : "the selected month"
-        }.`,
-      );
+      const message = `Imported ${payload.transactionCount ?? 0} transactions for ${
+        payload.statementMonth ? monthLabel(payload.statementMonth) : "the selected month"
+      }.`;
+
+      setNotice(message);
       await onImported();
+      onComplete?.(message);
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "The statement could not be imported.");
     } finally {
@@ -71,9 +77,7 @@ export function StatementImportPanel({ onImported, setupNotice }: StatementImpor
 
   return (
     <form
-      className={`flex flex-col gap-4 rounded-lg border bg-white/90 p-4 shadow-panel ${
-        isDragging ? "border-brand ring-2 ring-brand/20" : "border-line"
-      }`}
+      className="flex flex-col gap-4"
       onDragLeave={() => setIsDragging(false)}
       onDragOver={(event) => {
         event.preventDefault();
@@ -84,19 +88,8 @@ export function StatementImportPanel({ onImported, setupNotice }: StatementImpor
         setIsDragging(false);
         handleFiles(event.dataTransfer.files);
       }}
+      onSubmit={(event) => event.preventDefault()}
     >
-      <div className="flex items-center justify-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand text-white" aria-hidden="true">
-          <UploadCloud size={20} />
-        </div>
-        <div>
-          <h2 className="m-0 text-2xl font-bold leading-tight">
-            Import statement
-          </h2>
-          <p className="mt-1 text-sm text-muted">CSV, PDF, or plain text</p>
-        </div>
-      </div>
-
       <label className="-mb-2 text-xs font-extrabold text-muted" htmlFor="statement-month">
         Statement month
       </label>
@@ -107,13 +100,16 @@ export function StatementImportPanel({ onImported, setupNotice }: StatementImpor
       />
 
       <button
-        className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-muted/40 bg-brand/5 p-4 font-extrabold text-brand-deep transition hover:border-brand hover:shadow-lg"
+        className={`flex min-h-36 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 font-extrabold text-brand-deep transition hover:border-brand hover:shadow-lg ${
+          isDragging ? "border-brand bg-brand/10 ring-2 ring-brand/20" : "border-muted/40 bg-brand/5"
+        }`}
         type="button"
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
       >
-        <FileText size={28} />
+        <UploadCloud size={30} />
         <span>{isUploading ? "Importing..." : "Choose statement"}</span>
+        <span className="text-sm font-medium text-muted">CSV, PDF, or plain text</span>
       </button>
       <input
         ref={fileInputRef}
