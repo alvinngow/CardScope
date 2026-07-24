@@ -2,6 +2,7 @@
 
 import { Database, FileText, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
+import { StatementMonthPicker } from "@/components/cardscope/StatementMonthPicker";
 import { monthLabel } from "@/lib/formatters";
 
 type StatementImportPanelProps = {
@@ -99,12 +100,10 @@ export function StatementImportPanel({ onImported, setupNotice }: StatementImpor
       <label className="-mb-2 text-xs font-extrabold text-muted" htmlFor="statement-month">
         Statement month
       </label>
-      <input
-        className="h-10 min-w-0 rounded-lg border border-line bg-surface px-3 text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        id="statement-month"
-        type="month"
+      <StatementMonthPicker
+        disabled={isUploading}
         value={statementMonth}
-        onChange={(event) => setStatementMonth(event.target.value)}
+        onChange={setStatementMonth}
       />
 
       <button

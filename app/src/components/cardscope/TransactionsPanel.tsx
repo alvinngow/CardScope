@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/cardscope/EmptyState";
-import { dateLabel, money } from "@/lib/formatters";
+import { TransactionDataTable } from "@/components/cardscope/TransactionDataTable";
 import type { TransactionRow } from "@/lib/types";
 
 type TransactionsPanelProps = {
@@ -51,41 +51,11 @@ export function TransactionsPanel({ transactions }: TransactionsPanelProps) {
 
       <div className="overflow-x-auto">
         {filteredTransactions.length ? (
-          <table className="min-w-full border-collapse text-left">
-            <thead>
-              <tr className="text-xs font-extrabold uppercase text-muted">
-                <th className="w-28 pb-3 font-inherit">Date</th>
-                <th className="pb-3 font-inherit">Merchant</th>
-                <th className="w-40 pb-3 font-inherit">Category</th>
-                <th className="w-32 pb-3 text-right font-inherit">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.map((transaction) => (
-                <TransactionLine key={transaction.id} transaction={transaction} />
-              ))}
-            </tbody>
-          </table>
+          <TransactionDataTable transactions={filteredTransactions} />
         ) : (
           <EmptyState label={query ? "No matching transactions" : "No transactions yet"} />
         )}
       </div>
     </section>
-  );
-}
-
-function TransactionLine({ transaction }: { transaction: TransactionRow }) {
-  const isCredit = transaction.amount < 0;
-
-  return (
-    <tr className="border-t border-line">
-      <td className="w-28 whitespace-nowrap py-3 pr-4">{dateLabel(transaction.date)}</td>
-      <td className="min-w-48 max-w-xs truncate py-3 pr-4 font-bold">{transaction.merchant}</td>
-      <td className="w-40 whitespace-nowrap py-3 pr-4 text-muted">{transaction.category}</td>
-      <td className={`w-32 whitespace-nowrap py-3 text-right font-extrabold ${isCredit ? "text-positive" : ""}`}>
-        {isCredit ? "-" : ""}
-        {money.format(Math.abs(transaction.amount))}
-      </td>
-    </tr>
   );
 }

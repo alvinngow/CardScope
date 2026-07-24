@@ -13,6 +13,9 @@
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.21",
+    "@radix-ui/react-select": "^2.3.5",
+    "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^0.468.0",
     "next": "16.2.6",
     "pdf-parse": "^1.1.1",
