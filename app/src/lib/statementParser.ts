@@ -1,8 +1,11 @@
 import { categorizeMerchant } from "@/lib/categories";
 
+export type CategorySource = "deepseek" | "rules" | "statement";
+
 export type ParsedTransaction = {
   amount: number;
   category: string;
+  categorySource: CategorySource;
   merchant: string;
   rawText: string;
   transactionDate: string;
@@ -209,14 +212,15 @@ function parseCsvTransactions(text: string): ParsedTransaction[] {
       continue;
     }
 
-    const category =
-      headers.category >= 0 && row[headers.category]?.trim()
-        ? titleCase(row[headers.category])
-        : categorizeMerchant(merchant, amount);
+    const hasStatementCategory = headers.category >= 0 && row[headers.category]?.trim();
+    const category = hasStatementCategory
+      ? titleCase(row[headers.category])
+      : categorizeMerchant(merchant, amount);
 
     transactions.push({
       amount,
       category,
+      categorySource: hasStatementCategory ? "statement" : "rules",
       merchant,
       rawText: row.join(" | "),
       transactionDate: date,
@@ -355,6 +359,7 @@ function parseStandardCharteredPositionedRow(
   return {
     amount,
     category: categorizeMerchant(merchant, amount),
+    categorySource: "rules",
     merchant,
     rawText,
     transactionDate,
@@ -402,6 +407,7 @@ function parseStandardCharteredTransactions(
       transactions.push({
         amount: row.amount,
         category: categorizeMerchant(merchant, row.amount),
+        categorySource: "rules",
         merchant,
         rawText: `${row.rawText} | ${descriptions[index]}`,
         transactionDate: row.transactionDate,
@@ -457,6 +463,7 @@ function parseLooseTextTransactions(text: string, fallbackMonth?: string): Parse
     transactions.push({
       amount,
       category: categorizeMerchant(merchant, amount),
+      categorySource: "rules",
       merchant,
       rawText: line,
       transactionDate: date,

@@ -258,16 +258,18 @@ export async function saveStatement(fileName: string, parsed: ParsedStatement) {
             transaction_date,
             merchant,
             category,
+            category_source,
             amount,
             raw_text
           )
-          VALUES ($1, $2::date, $3, $4, $5, $6)
+          VALUES ($1, $2::date, $3, $4, $5, $6, $7)
         `,
         [
           statementId,
           transaction.transactionDate,
           transaction.merchant,
           transaction.category,
+          transaction.categorySource,
           transaction.amount,
           transaction.rawText,
         ],
@@ -308,6 +310,7 @@ async function recategorizeManagedTransactions() {
   const result = await getPool().query<{
     amount: number;
     category: string;
+    category_source: string;
     id: string;
     merchant: string;
     raw_text: string | null;
@@ -316,6 +319,7 @@ async function recategorizeManagedTransactions() {
       id::text,
       merchant,
       category,
+      category_source,
       amount::float8 AS amount,
       raw_text
     FROM transactions
@@ -323,7 +327,7 @@ async function recategorizeManagedTransactions() {
   const updates = [];
 
   for (const transaction of result.rows) {
-    if (!isManagedCategory(transaction.category)) {
+    if (transaction.category_source !== "rules" || !isManagedCategory(transaction.category)) {
       continue;
     }
 
@@ -390,10 +394,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   transaction_date DATE NOT NULL,
   merchant TEXT NOT NULL,
   category TEXT NOT NULL,
+  category_source TEXT NOT NULL DEFAULT 'rules',
   amount NUMERIC(12, 2) NOT NULL,
   raw_text TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE transactions
+  ADD COLUMN IF NOT EXISTS category_source TEXT NOT NULL DEFAULT 'rules';
 
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(transaction_date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);

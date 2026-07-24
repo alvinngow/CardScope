@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { categorizeParsedStatementWithDeepSeek } from "@/lib/deepseekCategorizer";
 import { hasDatabaseUrl, saveStatement } from "@/lib/database";
 import { parseStatementFile } from "@/lib/statementParser";
 
@@ -31,12 +32,13 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const parsed = await parseStatementFile(
+    const parsedStatement = await parseStatementFile(
       file.name,
       file.type,
       buffer,
       /^\d{4}-\d{2}$/.test(statementMonth) ? statementMonth : undefined,
     );
+    const parsed = await categorizeParsedStatementWithDeepSeek(parsedStatement);
 
     if (!parsed.transactions.length) {
       return NextResponse.json(

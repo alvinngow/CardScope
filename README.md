@@ -24,6 +24,18 @@ DATABASE_URL=postgres://cardscope:change-me@localhost:5432/cardscope
 
 The app creates its tables automatically on first database use. The same schema is also available in `db/schema.sql`.
 
+## Statement import flow
+
+CardScope parses the uploaded statement first, then sends any rule-uncategorized positive spending merchants to DeepSeek for categorization. DeepSeek can reuse existing categories or create a new broad category when the current list does not fit the vendor.
+
+```bash
+DEEPSEEK_API_KEY=your-deepseek-key
+DEEPSEEK_CATEGORIZATION_ENABLED=true
+DEEPSEEK_CATEGORIZATION_MODEL=deepseek-v4-flash
+```
+
+If `DEEPSEEK_API_KEY` is blank, imports still work, but unknown merchants stay in `Other` with an import warning.
+
 ## Raspberry Pi deployment
 
 ### With an existing Postgres server
@@ -55,4 +67,4 @@ The compose file starts CardScope and a separate `cardscope` Postgres database w
 
 ## Privacy note
 
-Statement data is parsed and stored by your own running instance. The app does not call an external statement parsing service.
+Statement data is parsed and stored by your own running instance. During categorization, CardScope sends only unknown merchant names, amounts, and redacted transaction snippets to DeepSeek.

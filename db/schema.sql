@@ -16,10 +16,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   transaction_date DATE NOT NULL,
   merchant TEXT NOT NULL,
   category TEXT NOT NULL,
+  category_source TEXT NOT NULL DEFAULT 'rules',
   amount NUMERIC(12, 2) NOT NULL,
   raw_text TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE transactions
+  ADD COLUMN IF NOT EXISTS category_source TEXT NOT NULL DEFAULT 'rules';
 
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(transaction_date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);

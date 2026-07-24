@@ -15,6 +15,16 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const MANAGED_CATEGORIES = new Set(Object.keys(CATEGORY_COLORS));
+const GENERATED_CATEGORY_COLORS = [
+  "#7c3aed",
+  "#0e7490",
+  "#b45309",
+  "#be123c",
+  "#15803d",
+  "#4338ca",
+  "#a16207",
+  "#047857",
+];
 
 const CATEGORY_RULES: Array<{ category: string; keywords: string[] }> = [
   {
@@ -197,9 +207,19 @@ export function categorizeMerchant(merchant: string, amount: number) {
 }
 
 export function categoryColor(category: string) {
-  return CATEGORY_COLORS[category] ?? CATEGORY_COLORS.Other;
+  if (CATEGORY_COLORS[category]) {
+    return CATEGORY_COLORS[category];
+  }
+
+  return GENERATED_CATEGORY_COLORS[hashCategory(category) % GENERATED_CATEGORY_COLORS.length];
 }
 
 export function isManagedCategory(category: string) {
   return MANAGED_CATEGORIES.has(category);
+}
+
+function hashCategory(category: string) {
+  return [...category].reduce((hash, char) => {
+    return (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }, 0);
 }
