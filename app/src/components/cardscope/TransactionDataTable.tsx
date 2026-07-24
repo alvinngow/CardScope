@@ -10,7 +10,8 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { TransactionCategorySelect } from "@/components/cardscope/TransactionCategorySelect";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -29,25 +30,58 @@ import {
 } from "@/components/ui/table";
 import { useLocalStoragePreference } from "@/hooks/useLocalStoragePreference";
 import { dateLabel, money } from "@/lib/formatters";
+import { saveTransactionCategory } from "@/lib/transactionClient";
 import type { TransactionRow } from "@/lib/types";
 
 type TransactionDataTableProps = {
+  categoryOptions: string[];
+  onCategoryChanged: () => Promise<void> | void;
   transactions: TransactionRow[];
 };
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const LEDGER_PAGE_SIZE_STORAGE_KEY = "cardscope-ledger-page-size";
 
-export function TransactionDataTable({ transactions }: TransactionDataTableProps) {
+export function TransactionDataTable({
+  categoryOptions,
+  onCategoryChanged,
+  transactions,
+}: TransactionDataTableProps) {
   const [pageSize, setPageSize] = useLocalStoragePreference({
     fallback: PAGE_SIZE_OPTIONS[0],
     key: LEDGER_PAGE_SIZE_STORAGE_KEY,
     parse: parsePageSize,
   });
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
   const [pageIndex, setPageIndex] = useState(0);
   const pagination = useMemo<PaginationState>(
     () => ({ pageIndex, pageSize }),
     [pageIndex, pageSize],
+  );
+  const handleCategoryChange = useCallback(
+    async (transactionId: string, currentCategory: string, nextCategory: string) => {
+      setCategoryOverrides((current) => ({
+        ...current,
+        [transactionId]: nextCategory,
+      }));
+
+      try {
+        const saved = await saveTransactionCategory(transactionId, nextCategory);
+
+        setCategoryOverrides((current) => ({
+          ...current,
+          [transactionId]: saved.category,
+        }));
+        await onCategoryChanged();
+      } catch (error) {
+        setCategoryOverrides((current) => ({
+          ...current,
+          [transactionId]: currentCategory,
+        }));
+        throw error;
+      }
+    },
+    [onCategoryChanged],
   );
 
   const columns = useMemo<ColumnDef<TransactionRow>[]>(
@@ -69,7 +103,20 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
       {
         accessorKey: "category",
         header: "Category",
-        cell: ({ row }) => <span className="whitespace-nowrap text-muted">{row.original.category}</span>,
+        cell: ({ row }) => {
+          const category = categoryOverrides[row.original.id] ?? row.original.category;
+
+          return (
+            <TransactionCategorySelect
+              category={category}
+              categoryOptions={categoryOptions}
+              merchant={row.original.merchant}
+              onChange={(nextCategory) =>
+                handleCategoryChange(row.original.id, category, nextCategory)
+              }
+            />
+          );
+        },
       },
       {
         accessorKey: "statementName",
@@ -98,7 +145,7 @@ export function TransactionDataTable({ transactions }: TransactionDataTableProps
         },
       },
     ],
-    [],
+    [categoryOptions, categoryOverrides, handleCategoryChange],
   );
   // TanStack Table intentionally returns live table helpers; this follows shadcn's data-table pattern.
   // eslint-disable-next-line react-hooks/incompatible-library

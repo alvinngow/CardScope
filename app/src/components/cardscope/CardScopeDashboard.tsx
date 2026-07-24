@@ -23,7 +23,10 @@ export function CardScopeDashboard() {
         setupNotice={overview?.setupNotice}
         onRemoved={refresh}
       />
-      <TransactionsPanel transactions={overview?.transactions ?? []} />
+      <TransactionsPanel
+        onTransactionUpdated={refresh}
+        transactions={overview?.transactions ?? []}
+      />
     </main>
   );
 }

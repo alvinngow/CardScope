@@ -310,6 +310,34 @@ export async function deleteStatement(statementId: string) {
   return (result.rowCount ?? 0) > 0;
 }
 
+export async function updateTransactionCategory(transactionId: string, category: string) {
+  await ensureSchema();
+
+  if (!/^\d+$/.test(transactionId)) {
+    return null;
+  }
+
+  const normalizedCategory = normalizeCategory(category);
+
+  if (!normalizedCategory) {
+    throw new Error("Category is required.");
+  }
+
+  const result = await getPool().query<{ category: string; id: string }>(
+    `
+      UPDATE transactions
+      SET
+        category = $1,
+        category_source = 'manual'
+      WHERE id = $2
+      RETURNING id::text, category
+    `,
+    [normalizedCategory, transactionId],
+  );
+
+  return result.rows[0] ?? null;
+}
+
 async function query<T extends QueryResultRow>(sql: string, params: unknown[] = []) {
   const result = await getPool().query<T>(sql, params);
   return result.rows;
@@ -390,6 +418,16 @@ function totalPositiveSpend(parsed: ParsedStatement) {
 
 function roundMoney(value: number) {
   return Number(value.toFixed(2));
+}
+
+function normalizeCategory(category: string) {
+  const normalized = category.replace(/\s+/g, " ").trim();
+
+  if (!normalized || normalized.length > 60) {
+    return null;
+  }
+
+  return normalized;
 }
 
 const SCHEMA_SQL = `
